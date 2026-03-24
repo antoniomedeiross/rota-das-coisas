@@ -1,0 +1,10 @@
+version: "3"
+
+services:
+  broker:
+    build: .
+    container_name: broker
+    ports:
+      - "9090:9090"
+      - "9091:9091"
+

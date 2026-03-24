@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"os"
 )
 
 const (
@@ -13,9 +14,17 @@ const (
 	NICK = "atuador1"
 )
 
+func getServerAddr() string {
+	addr := os.Getenv("SERVER_ADDR")
+	if addr == "" {
+		addr = "localhost:9091" // fallback
+	}
+	return addr
+}
+
 func main() {
 	//conecta no servidor
-	conn, err := net.Dial("tcp", SERVER_ADDR)
+	conn, err := net.Dial("tcp", getServerAddr())
 	if err != nil {
 		log.Fatal("Erro ao conectar no servidor:", err)
 	}

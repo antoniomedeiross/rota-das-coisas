@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+
+func getServerAddr() string {
+	addr := os.Getenv("SERVER_ADDR")
+	if addr == "" {
+		addr = "localhost" // fallback
+	}
+	fmt.Println(addr)
+
+	return addr
+}
+
 func main() {
 	// Configura o rand
 	nick, err:= os.Hostname()
@@ -19,7 +30,7 @@ func main() {
 	}
 
 	//ladrr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0}    // porta dinâmica
-	radrr := &net.UDPAddr{IP: net.ParseIP("192.168.0.103"), Port: 9090} // servidor
+	radrr := &net.UDPAddr{IP: net.ParseIP(getServerAddr()), Port: 9090} // servidor
 
 	conn, err := net.DialUDP("udp", nil, radrr)
 	// conn, err := net.DialUDP("udp", ladrr, radrr)
@@ -28,7 +39,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	fmt.Println("Cliente UDP iniciado. Conectado ao servidor na porta 9090")
+	fmt.Println("Cliente UDP iniciado. Conectado ao servidor no adr 9090")
 
 	// 1. Primeiro envia REGISTER
 

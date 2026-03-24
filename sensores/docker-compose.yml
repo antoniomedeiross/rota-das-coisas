@@ -6,3 +6,5 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.sensores
+    environment:
+      - SERVER_ADDR=${SERVER_ADDR}

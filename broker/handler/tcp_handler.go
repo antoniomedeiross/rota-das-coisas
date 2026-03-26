@@ -84,7 +84,7 @@ func HandleRequestTcp(conn net.Conn) {
 			if nickClient != "" {
 				resp = repository.SeguirSensor(nickSensor, nickClient)
 			} else {
-				resp = "VOCE PRECISA SE REGISTRAR"
+				resp = "VOCE PRECISA SE REGISTRAR\n"
 			}
 			conn.Write([]byte(resp))
 

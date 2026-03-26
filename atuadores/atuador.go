@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strings"
 	"os"
+	"strings"
 )
 
 const (
 	SERVER_ADDR = "192.168.0.103:9091" // IP do servidor TCP
-	NICK = "atuador1"
+	NICK        = "atuador1"
+)
+
+var (
+	ativo = false
 )
 
 func getServerAddr() string {
@@ -45,6 +49,8 @@ func main() {
 			return
 		}
 
+		fmt.Println("---------- CONEXÃO ESTABELECIDA COM O SERVIDOR ----------")
+		fmt.Println("AGUARDANDO COMANDOS...")
 		msg = strings.TrimSpace(msg)
 
 		if msg == "" {
@@ -52,7 +58,6 @@ func main() {
 		}
 
 		log.Println("Comando recebido:", msg)
-
 
 		// executa comando
 		resposta := executarComando(msg)
@@ -69,21 +74,27 @@ func executarComando(cmd string) string {
 	switch parts[0] {
 
 	case "ON":
-		fmt.Println("🔵 Atuador LIGADO")
-		return "OK ON"
+		if ativo == true {
+			fmt.Println("Atuador JÁ ESTÁ LIGADO")
+			return "ATUADOR JA ESTA LIGADO"
+		} else if ativo == false {
+			fmt.Println("Atuador LIGADO")
+			ativo = true
+			return "ATUADOR LIGADO"
+		}
+		return "OCORREU UM ERRO"
 
 	case "OFF":
-		fmt.Println("⚫ Atuador DESLIGADO")
-		return "OK OFF"
-
-	case "SET":
-		if len(parts) < 2 {
-			return "ERRO SET"
+		if ativo == true {
+			fmt.Println("Atuador DESLIGADO")
+			ativo = false
+			return "ATUADOR DESLIGADO"
+		} else if ativo == false {
+			fmt.Println("Atuador JA ESTÁ DESLIGADO")
+			ativo = true
+			return "ATUADOR JA ESTA DESLIGADO"
 		}
-		valor := parts[1]
-		fmt.Println("⚙️ Ajustando valor para:", valor)
-		return "OK SET " + valor
-
+		return "OCORREU UM ERRO"
 	default:
 		return "COMANDO DESCONHECIDO"
 	}

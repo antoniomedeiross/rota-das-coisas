@@ -18,6 +18,8 @@ func HandleRequestTcp(conn net.Conn) {
 
 	leitor := bufio.NewReader(conn)
 
+	var nickClient string
+
 	for {
 		//lê mensagem linha a linha
 		msg, err := leitor.ReadString('\n')
@@ -34,45 +36,74 @@ func HandleRequestTcp(conn net.Conn) {
 
 		log.Println("Recebido:", msg)
 
-		
 		// parse comando
 		parts := strings.SplitN(msg, " ", 2)
 
 		switch parts[0] {
-			case "COMMAND":
-				if len(parts) < 2 {
-					conn.Write([]byte("Uso: COMMAND <nickAtuador> <ação>\n"))
-					continue
+		case "COMMAND":
+			if len(parts) < 2 {
+				conn.Write([]byte("Uso: COMMAND <nickAtuador> <ação>\n"))
+				continue
+			}
+			handleCommand(parts[1], conn)
+
+		case "REGISTER-ATUADOR":
+
+			if strings.HasPrefix(msg, "REGISTER-ATUADOR") {
+				nick := strings.TrimSpace(parts[1])
+				resp := repository.SalvarAtuador(nick, conn)
+				log.Println(resp)
+				//entra em modo passivo não lê mais comandos
+				// select {} ==> tava bloqueando a verificacao do encerramento de conexao
+				for {
+					// Opcional: ler e ignorar mensagens
+					buf := make([]byte, 1024)
+					_, err := conn.Read(buf)
+					if err != nil {
+						// Conexão fechada, sai do loop
+						log.Printf("Atuador %s desconectado: %v", nick, err)
+						repository.RemoverAtuador(nick)
+						break
+					}
+					// Ignora mensagens (modo passivo)
+					// Ou processa se necessário
 				}
-				handleCommand(parts[1], conn)
+			}
 
-			case "REGISTER-ATUADOR":
+		case "REGISTER-CLIENT":
+			nick := parts[1]
+			resp := repository.SalvarCliente(nick, conn)
 
-				if strings.HasPrefix(msg, "REGISTER-ATUADOR") {
-					nick := strings.TrimSpace(parts[1])
-					repository.SalvarAtuador(nick, conn)
+			// so pode acontecer se salvar direito...
+			nickClient = nick
 
-					log.Println("Atuador registrado:", nick)
+			conn.Write([]byte(resp))
+		case "SEGUIR-SENSOR":
+			nickSensor := parts[1]
+			var resp string
+			if nickClient != "" {
+				resp = repository.SeguirSensor(nickSensor, nickClient)
+			} else {
+				resp = "VOCE PRECISA SE REGISTRAR"
+			}
+			conn.Write([]byte(resp))
 
-					//entra em modo passivo não lê mais comandos
-					select {}
-				}
-		
+		case "LIST-SENSORES":
+			repository.ListarDispositivosConectados(conn)
+		case "LIST-ATUADORES":
+			repository.ListarAtuadoresConectados(conn)
 
-			case "REGISTER-CLIENT":
-				nick := parts[1]
-				repository.SalvarCliente(nick, conn)
-	
-			
-			case "QUIT":
-				conn.Write([]byte("Conexão encerrada\n"))
-				return
+		case "LIST-CLIENTES":
+			repository.ListarClientesConectados(conn)
+		case "QUIT":
+			conn.Write([]byte("Conexão encerrada\n"))
+			return
 
-			case "PING":
-				conn.Write([]byte("PONG\n"))
+		case "PING":
+			conn.Write([]byte("PONG\n"))
 
-			default:
-				conn.Write([]byte("Comando inválido\n"))
+		default:
+			conn.Write([]byte("Comando inválido\n"))
 		}
 	}
 }

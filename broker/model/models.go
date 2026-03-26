@@ -2,6 +2,8 @@ package model
 
 import (
 	"net"
+	"sync"
+	"time"
 )
 
 type Sensor struct {
@@ -9,15 +11,16 @@ type Sensor struct {
 	Tipo string
 	UltimoValor string
 	Addr *net.UDPAddr
-	ListaInscritos []*net.UDPAddr
+	UltimoHeartBeat time.Time
+	Ativo bool
+	ListaInscritos []string
 }
-
 type Atuador struct {
 	Nick string
 	Tipo string
 	Ativo bool
 	Conn net.Conn
-	//Mu   sync.Mutex
+	Mu   sync.Mutex
 }
 
 type Cliente struct {

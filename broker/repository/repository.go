@@ -2,30 +2,28 @@ package repository
 
 import (
 	"broker/model"
-	"sync"
-	"strings"
-	"log"
+	"bufio"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
-	"bufio"
+	"strings"
+	"sync"
+	"time"
 )
-
 
 var mutex sync.Mutex
 
 // map[nick] → struct sensor
-var Dispositivos = make(map[string]model.Sensor)
+var Dispositivos = make(map[string]*model.Sensor)
 
 // map[nick] → struct atuador
-var Atuadores = make(map[string]model.Atuador)
+var Atuadores = make(map[string]*model.Atuador)
 
 // map[nick] → struct clients
-var Clientes = make(map[string]model.Cliente)
+var Clientes = make(map[string]*model.Cliente)
 
-
-
-func SalvarSensor(nick string, addr *net.UDPAddr) string{
+func SalvarSensor(nick string, addr *net.UDPAddr) string {
 	// TRAVA A ESTRUTURA
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -37,9 +35,9 @@ func SalvarSensor(nick string, addr *net.UDPAddr) string{
 		}
 	}
 
-	if len(nick) > 0	{
+	if len(nick) > 0 {
 		nick = strings.TrimSpace(nick)
-		Dispositivos[nick] = model.Sensor{Nick: nick, Tipo: "Sensor", UltimoValor: "sensor desligado", Addr: addr}
+		Dispositivos[nick] = &model.Sensor{Nick: nick, Tipo: "Sensor", UltimoValor: "sensor desligado", UltimoHeartBeat: time.Now(), Ativo: true, Addr: addr}
 		log.Println("DISPOSITIVOS CONECTADOS")
 		return "DISPOSITIVO CONECTADO \n"
 	}
@@ -58,10 +56,10 @@ func SalvarAtuador(nick string, conn net.Conn) string {
 		}
 	}
 
-	if len(nick) > 0	{
+	if len(nick) > 0 {
 		nick = strings.TrimSpace(nick)
-		Atuadores[nick] = model.Atuador{Nick: nick, Tipo: "Alarme", Ativo: false, Conn: conn}
-		log.Println("ATUADOR CONECTADO")
+		Atuadores[nick] = &model.Atuador{Nick: nick, Tipo: "Alarme", Ativo: false, Conn: conn}
+		//log.Println("ATUADOR CONECTADO")
 		return "ATUADOR CONECTADO \n"
 	}
 	return "ERRO AO CONECTAR ATUADOR"
@@ -79,9 +77,9 @@ func SalvarCliente(nick string, conn net.Conn) string {
 		}
 	}
 
-	if len(nick) > 0	{
+	if len(nick) > 0 {
 		nick = strings.TrimSpace(nick)
-		Clientes[nick] = model.Cliente{Nick: nick, Conn: conn}
+		Clientes[nick] = &model.Cliente{Nick: nick, Conn: conn}
 		log.Println("CLIENTE CONECTADO")
 		return "CLIENTE CONECTADO \n"
 	}
@@ -89,31 +87,54 @@ func SalvarCliente(nick string, conn net.Conn) string {
 }
 
 func EnviarDados(nickValue string, conn *net.UDPConn, enviadorAddr *net.UDPAddr) {
-	// TRAVA A ESTRUTURA
-	mutex.Lock()
-	defer mutex.Unlock()
 
 	parts := strings.SplitN(string(nickValue), " ", 2)
-	//nick := parts[0]
 	nickSensor := strings.TrimSpace(parts[0])
-	// parts[1] = valor
-	if Dispositivos[nickSensor].Addr.String() == enviadorAddr.String() {
-		listaAddrs := Dispositivos[nickSensor].ListaInscritos
-		
-		//retorna para o sensor se os dados foram recebidos
-		conn.WriteToUDP([]byte("Dados recebidos com sucesso"), enviadorAddr)
-		
-		for _, a := range listaAddrs {
-			conn.WriteToUDP([]byte(parts[1]+"\n"), a)
-		}
+
+	// pega dados protegidos
+	mutex.Lock()
+
+	sensor, existe := Dispositivos[nickSensor]
+	if !existe || sensor.Addr.String() != enviadorAddr.String() {
+		mutex.Unlock()
+		conn.WriteToUDP([]byte("SENSOR NÃO ENCONTRADO\n"), enviadorAddr)
 		return
 	}
 
-	conn.WriteToUDP([]byte("SEU NICK NÃO VÁLIDO \n"), enviadorAddr)
+	// atualiza heartbeat
+	sensor.UltimoHeartBeat = time.Now()
+	Dispositivos[nickSensor] = sensor
 
+	// copia lista (IMPORTANTÍSSIMO)
+	listaClientes := make([]string, len(sensor.ListaInscritos))
+	copy(listaClientes, sensor.ListaInscritos)
+
+	mutex.Unlock() // libera antes de I/O
+
+	// responde sensor
+	conn.WriteToUDP([]byte("Dados recebidos com sucesso"), enviadorAddr)
+
+	// envia para clientes
+	for _, nickCliente := range listaClientes {
+		cliente, ok := Clientes[nickCliente]
+		if !ok {
+			continue
+		}
+
+		go func(c net.Conn) { //EVIA VIA CONCORRENCIA
+			_, err := c.Write([]byte(parts[1]))
+			if err != nil {
+				log.Println("Erro ao enviar para cliente:", err)
+			}
+		}(cliente.Conn)
+	}
 }
 
-func SeguirSensor(nickSensor string, appAddr *net.UDPAddr) {
+// ///////////////////////
+// ////////////////////////
+// //////////////////////
+// MUDAR LOGICA PARA TCPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+func SeguirSensor(nickSensor string, clientConn string) string {
 	// TRAVA A ESTRUTURA
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -126,42 +147,69 @@ func SeguirSensor(nickSensor string, appAddr *net.UDPAddr) {
 	if existe {
 		fmt.Println(nickSensor, " - Nome do sensor")
 		s := Dispositivos[nickSensor]
-		s.ListaInscritos = append(s.ListaInscritos, appAddr)
+		s.ListaInscritos = append(s.ListaInscritos, nickClient)
 		Dispositivos[nickSensor] = s
-	
+
 	} else {
 		fmt.Println("SENSOR INVÁLIDO!")
 	}
+
+	return "ok"
 }
 
-func ListarDispositivosConectados(conn *net.UDPConn, clientAddr *net.UDPAddr) {
+func ListarDispositivosConectados(conn net.Conn) {
 	i := 1
-	var msg string = "---------- SENSORES CONECTADOS ---------- \n"
-	for k := range Dispositivos {
-		msg += strconv.Itoa(i)+" - "+k+"\n"; 
+	msg := "---------- SENSORES CONECTADOS ----------\n"
+
+	for k, a := range Dispositivos {
+		msg += strconv.Itoa(i) + " - " + k +
+			" | TIPO: " + a.Tipo +
+			" | ATIVO: " + strconv.FormatBool(a.Ativo) +
+			" | ÚLTIMA ATUALIZAÇÃO: " + a.UltimoHeartBeat.Format("02/01/06 15:04:01") + "\n"
+		i++
+	}
+
+	fmt.Println(msg)
+	conn.Write([]byte(msg))
+}
+
+func ListarAtuadoresConectados(conn net.Conn) {
+	i := 1
+	var msg string = "---------- ATUADORES CONECTADOS ---------- \n"
+	for k := range Atuadores {
+		msg += strconv.Itoa(i) + " - " + k + "\n"
 		i++
 	}
 	fmt.Println(msg)
-	conn.WriteToUDP([]byte(msg), clientAddr);
-	
+	conn.Write([]byte(msg))
 }
 
+func ListarClientesConectados(conn net.Conn) {
+	i := 1
+	var msg string = "---------- CLIENTES CONECTADOS ---------- \n"
+	for k := range Clientes {
+		msg += strconv.Itoa(i) + " - " + k + "\n"
+		i++
+	}
+	fmt.Println(msg)
+	conn.Write([]byte(msg))
+}
 
 func ComandarAtuador(nick string, acao string) string {
 	mutex.Lock()
 	a, ok := Atuadores[nick]
 	defer mutex.Unlock()
 
-	
-	
 	if !ok {
 		return "ATUADOR NAO ENCONTRADO\n"
 	}
 	// envia comando
 	msg := acao + "\n"
 	fmt.Println(acao)
-	a.Conn.Write([]byte(msg))
 
+	a.Mu.Lock() // TRAVA A CONEXÃO COM ESSE ATUADOR
+	defer a.Mu.Unlock()
+	a.Conn.Write([]byte(msg))
 
 	reader := bufio.NewReader(a.Conn)
 
@@ -169,11 +217,27 @@ func ComandarAtuador(nick string, acao string) string {
 	if err != nil {
 		return "ERRO AO LER RESPOSTA DO ATUADOR\n"
 	}
+	resp = strings.TrimSpace(resp)
+	resp = strings.TrimRight(resp, "\n")
+
+	fmt.Println("aqui-" + resp + "-aqui")
+	switch resp {
+	case "ATUADOR LIGADO":
+		a.Ativo = true
+	case "ATUADOR DESLIGADO":
+		a.Ativo = false
+	case "ATUADOR JA ESTA DESLIGADO":
+		a.Ativo = false
+	case "ATUADOR JA ESTA LIGADO":
+		a.Ativo = true
+	default:
+		resp = "O ATUADOR ENVIOU UMA RESPOSTA INVÁLIDA\n"
+	}
 
 	return resp
 }
 
-// repository/atuador.go
+// NAO TO USANDO MAIIIS
 func SetAtuador(nick string, ativo bool) bool {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -188,10 +252,17 @@ func SetAtuador(nick string, ativo bool) bool {
 	return true
 }
 
+func RemoverAtuador(nick string) {
+	for a := range Atuadores {
+		if a == nick {
+			delete(Atuadores, nick)
+		}
+	}
+}
+
 func MenuHelp(conn *net.UDPConn, clientAddr *net.UDPAddr) {
 	menu := ("============================= HELP INCOMPLETO ============================= \n" +
 		"REGISTER nickSensor --> registra o sensor \n")
 
 	conn.WriteToUDP([]byte(menu), clientAddr)
 }
-

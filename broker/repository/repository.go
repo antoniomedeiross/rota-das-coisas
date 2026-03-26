@@ -134,7 +134,7 @@ func EnviarDados(nickValue string, conn *net.UDPConn, enviadorAddr *net.UDPAddr)
 // ////////////////////////
 // //////////////////////
 // MUDAR LOGICA PARA TCPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
-func SeguirSensor(nickSensor string, clientConn string) string {
+func SeguirSensor(nickSensor string, nickClient string) string {
 	// TRAVA A ESTRUTURA
 	mutex.Lock()
 	defer mutex.Unlock()

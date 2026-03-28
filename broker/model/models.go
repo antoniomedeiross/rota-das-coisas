@@ -1,8 +1,8 @@
 package model
 
 import (
+	"bufio"
 	"net"
-	"sync"
 	"time"
 )
 
@@ -14,13 +14,18 @@ type Sensor struct {
 	UltimoHeartBeat time.Time
 	Ativo bool
 	ListaInscritos []string
+
+	
 }
+
+// model
 type Atuador struct {
-	Nick string
-	Tipo string
-	Ativo bool
-	Conn net.Conn
-	Mu   sync.Mutex
+    Nick   string
+    Tipo   string
+    Ativo  bool
+    Conn   net.Conn
+    Reader *bufio.Reader
+    Done   chan struct{} // ← sinaliza desconexão
 }
 
 type Cliente struct {

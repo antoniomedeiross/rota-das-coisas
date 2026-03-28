@@ -47,28 +47,18 @@ func HandleRequestTcp(conn net.Conn) {
 			}
 			handleCommand(parts[1], conn)
 
+			// handler - REGISTER-ATUADOR
 		case "REGISTER-ATUADOR":
+			nick := strings.TrimSpace(parts[1])
+			resp := repository.SalvarAtuador(nick, conn, leitor)
+			log.Println(resp)
 
-			if strings.HasPrefix(msg, "REGISTER-ATUADOR") {
-				nick := strings.TrimSpace(parts[1])
-				resp := repository.SalvarAtuador(nick, conn)
-				log.Println(resp)
-				//entra em modo passivo não lê mais comandos
-				// select {} ==> tava bloqueando a verificacao do encerramento de conexao
-				for {
-					// Opcional: ler e ignorar mensagens
-					buf := make([]byte, 1024)
-					_, err := conn.Read(buf)
-					if err != nil {
-						// Conexão fechada, sai do loop
-						log.Printf("Atuador %s desconectado: %v", nick, err)
-						repository.RemoverAtuador(nick)
-						break
-					}
-					// Ignora mensagens (modo passivo)
-					// Ou processa se necessário
-				}
+			// Espera sinal de desconexão sem tocar na conexão
+			a := repository.GetAtuador(nick)
+			if a != nil {
+				<-a.Done // bloqueia aqui até alguém fechar o canal
 			}
+			return
 
 		case "REGISTER-CLIENT":
 			nick := parts[1]
@@ -119,9 +109,14 @@ func handleCommand(cmd string, conn net.Conn) {
 	nick := strings.TrimSpace(parts[0])
 	acao := strings.TrimSpace(parts[1])
 
-	resp := repository.ComandarAtuador(nick, acao)
+	go func() {
+		resp := repository.ComandarAtuador(nick, acao)
 
-	log.Println("Resposta do atuador:", resp)
+		log.Println("Resposta do atuador:", resp)
 
-	conn.Write([]byte(resp))
+		conn.Write([]byte(resp))
+	}()
+
 }
+
+

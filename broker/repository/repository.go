@@ -204,31 +204,21 @@ func ComandarAtuador(nick string, acao string) string {
 	}
 
 	msg := acao + "\n"
-	fmt.Println(acao + "-------------------------------------------")
 
 	_, err := a.Conn.Write([]byte(msg))
 	if err != nil {
 		return "ERRO AO ENVIAR COMANDO\n"
 	}
-	fmt.Println("DEBUG-1-------------------------------------------")
 
 	reader := a.Reader
-	fmt.Println("DEBUG-2-------------------------------------------")
 
 	resp, err := reader.ReadString('\n')
-	fmt.Println("DEBUG-3-------------------------------------------")
-
+	
 	if err != nil {
 		return "ERRO AO LER RESPOSTA DO ATUADOR\n"
 	}
 
-	fmt.Println("DEBUG-4-------------------------------------------")
-
-	fmt.Println("aqui-" + resp + "-aqui")
 	resp = strings.TrimSpace(resp)
-	fmt.Println("aqui-" + resp + "-aqui")
-
-	fmt.Println("DEBUG-5-------------------------------------------")
 
 	switch resp {
 	case "ATUADOR LIGADO":
@@ -242,8 +232,6 @@ func ComandarAtuador(nick string, acao string) string {
 	default:
 		return "O ATUADOR ENVIOU UMA RESPOSTA INVALIDA\n"
 	}
-
-	fmt.Println("DEBUG-6-------------------------------------------")
 
 	return resp + "\n"
 }

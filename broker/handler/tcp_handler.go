@@ -85,6 +85,16 @@ func HandleRequestTcp(conn net.Conn) {
 
 		case "LIST-CLIENTES":
 			repository.ListarClientesConectados(conn)
+		case "PARAR-SENSOR":
+			nickSensor := parts[1]
+			var resp string
+			if nickClient != "" {
+				resp = repository.PararSensor(nickSensor, nickClient)
+			} else {
+				resp = "VOCE PRECISA SE REGISTRAR\n"
+			}
+			conn.Write([]byte(resp))
+
 		case "QUIT":
 			conn.Write([]byte("Conexão encerrada\n"))
 			return
@@ -118,5 +128,3 @@ func handleCommand(cmd string, conn net.Conn) {
 	}()
 
 }
-
-

@@ -15,7 +15,7 @@ type Sensor struct {
 	Ativo bool
 	ListaInscritos []string
 
-	
+	DadosCh         chan string
 }
 
 // model

@@ -37,8 +37,9 @@ func SalvarSensor(nick string, addr *net.UDPAddr) string {
 
 	if len(nick) > 0 {
 		nick = strings.TrimSpace(nick)
-		Dispositivos[nick] = &model.Sensor{Nick: nick, Tipo: "Sensor", UltimoValor: "sensor desligado", UltimoHeartBeat: time.Now(), Ativo: true, Addr: addr}
+		Dispositivos[nick] = &model.Sensor{Nick: nick, Tipo: "Sensor", UltimoHeartBeat: time.Now(), Ativo: true, Addr: addr, DadosCh: make(chan string, 100)}
 		log.Println("DISPOSITIVOS CONECTADOS")
+		go flushSensor(nick)
 		return "DISPOSITIVO CONECTADO \n"
 	}
 	return "ERRO AO CONECTAR SENSOR"
@@ -87,47 +88,27 @@ func SalvarCliente(nick string, conn net.Conn) string {
 }
 
 func EnviarDados(nickValue string, conn *net.UDPConn, enviadorAddr *net.UDPAddr) {
-
 	parts := strings.SplitN(string(nickValue), " ", 2)
 	nickSensor := strings.TrimSpace(parts[0])
 
-	// pega dados protegidos
 	mutex.Lock()
-
 	sensor, existe := Dispositivos[nickSensor]
 	if !existe || sensor.Addr.String() != enviadorAddr.String() {
 		mutex.Unlock()
 		conn.WriteToUDP([]byte("SENSOR NÃO ENCONTRADO\n"), enviadorAddr)
 		return
 	}
-
-	// atualiza heartbeat
 	sensor.UltimoHeartBeat = time.Now()
-	Dispositivos[nickSensor] = sensor
+	mutex.Unlock()
 
-	// copia lista (IMPORTANTÍSSIMO)
-	listaClientes := make([]string, len(sensor.ListaInscritos))
-	copy(listaClientes, sensor.ListaInscritos)
-
-	mutex.Unlock() // libera antes de I/O
-
-	// responde sensor
-	conn.WriteToUDP([]byte("Dados recebidos com sucesso"), enviadorAddr)
-
-	// envia para clientes
-	for _, nickCliente := range listaClientes {
-		cliente, ok := Clientes[nickCliente]
-		if !ok {
-			continue
-		}
-
-		go func(c net.Conn) { //EVIA VIA CONCORRENCIA
-			_, err := c.Write([]byte(parts[1]))
-			if err != nil {
-				log.Println("Erro ao enviar para cliente:", err)
-			}
-		}(cliente.Conn)
+	//log.Println(&sensor.DadosCh)
+	// joga no canal sem salvar no struct
+	select {
+	case sensor.DadosCh <- strings.TrimSpace(parts[1]):
+	default: // canal cheio, descarta (não bloqueia)
 	}
+
+	conn.WriteToUDP([]byte("Dados recebidos\n"), enviadorAddr)
 }
 
 // ///////////////////////
@@ -143,57 +124,63 @@ func SeguirSensor(nickSensor string, nickClient string) string {
 
 	_, existe := Dispositivos[nickSensor]
 
-	fmt.Println(existe)
-	if existe {
-		fmt.Println(nickSensor, " - Nome do sensor")
-		s := Dispositivos[nickSensor]
-		s.ListaInscritos = append(s.ListaInscritos, nickClient)
-		Dispositivos[nickSensor] = s
-
-	} else {
-		fmt.Println("SENSOR INVÁLIDO!")
+	if !existe {
+		return "SENSOR NÃO ENCONTRADO\n"
 	}
+	fmt.Println(nickSensor, " - Nome do sensor")
+	s := Dispositivos[nickSensor]
+	s.ListaInscritos = append(s.ListaInscritos, nickClient)
+	Dispositivos[nickSensor] = s
 
-	return "ok"
+	return "ok\n"
 }
 
 func ListarDispositivosConectados(conn net.Conn) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	i := 1
 	msg := "---------- SENSORES CONECTADOS ----------\n"
-
 	for k, a := range Dispositivos {
+		ativo := "INATIVO"
+		if a.Ativo {
+			ativo = "ATIVO"
+		}
 		msg += strconv.Itoa(i) + " - " + k +
 			" | TIPO: " + a.Tipo +
-			" | ATIVO: " + strconv.FormatBool(a.Ativo) +
-			" | ÚLTIMA ATUALIZAÇÃO: " + a.UltimoHeartBeat.Format("02/01/06 15:04:01") + "\n"
+			" | STATUS: " + ativo +
+			" | ÚLTIMA ATUALIZAÇÃO: " + a.UltimoHeartBeat.Format("02/01/06 15:04:05") +
+			" | INSCRITOS: " + strconv.Itoa(len(a.ListaInscritos)) + "\n"
 		i++
 	}
-
+	if i == 1 {
+		msg += "Nenhum sensor conectado\n"
+	}
 	fmt.Println(msg)
 	conn.Write([]byte(msg))
 }
 
 func ListarAtuadoresConectados(conn net.Conn) {
-    mutex.Lock()
-    defer mutex.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 
-    i := 1
-    msg := "---------- ATUADORES CONECTADOS ----------\n"
-    for k, a := range Atuadores {
-        ativo := "DESLIGADO"
-        if a.Ativo {
-            ativo = "LIGADO"
-        }
-        msg += strconv.Itoa(i) + " - " + k +
-            " | TIPO: " + a.Tipo +
-            " | STATUS: " + ativo + "\n"
-        i++
-    }
-    if i == 1 {
-        msg += "Nenhum atuador conectado\n"
-    }
-    fmt.Println(msg)
-    conn.Write([]byte(msg))
+	i := 1
+	msg := "---------- ATUADORES CONECTADOS ----------\n"
+	for k, a := range Atuadores {
+		ativo := "DESLIGADO"
+		if a.Ativo {
+			ativo = "LIGADO"
+		}
+		msg += strconv.Itoa(i) + " - " + k +
+			" | TIPO: " + a.Tipo +
+			" | STATUS: " + ativo + "\n"
+		i++
+	}
+	if i == 1 {
+		msg += "Nenhum atuador conectado\n"
+	}
+	fmt.Println(msg)
+	conn.Write([]byte(msg))
 }
 
 func ListarClientesConectados(conn net.Conn) {
@@ -291,9 +278,76 @@ func MenuHelp(conn *net.UDPConn, clientAddr *net.UDPAddr) {
 	conn.WriteToUDP([]byte(menu), clientAddr)
 }
 
-
 func GetAtuador(nick string) *model.Atuador {
-    mutex.Lock()
-    defer mutex.Unlock()
-    return Atuadores[nick]
+	mutex.Lock()
+	defer mutex.Unlock()
+	return Atuadores[nick]
+}
+
+// //////////////////////////////////////////////////////
+func flushSensor(nick string) {
+	ticker := time.NewTicker(1000 * time.Millisecond)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		mutex.Lock()
+		sensor, ok := Dispositivos[nick]
+		if !ok {
+			mutex.Unlock()
+			return
+		}
+		listaClientes := make([]string, len(sensor.ListaInscritos))
+		copy(listaClientes, sensor.ListaInscritos)
+		mutex.Unlock()
+
+		// pega só o dado mais recente do canal, descarta o resto
+		var dado string
+	loop:
+		for {
+			select {
+			case d := <-sensor.DadosCh:
+				dado = d // continua drenando
+			default:
+				break loop // canal vazio, para
+			}
+		}
+
+		if dado == "" {
+			continue // nenhum dado chegou nesse intervalo
+		}
+
+		// repassa para clientes
+		for _, nickCliente := range listaClientes {
+			mutex.Lock()
+			cliente, ok := Clientes[nickCliente]
+			mutex.Unlock()
+			if !ok {
+				continue
+			}
+			go func(c net.Conn) {
+				c.Write([]byte(nick + ": " + dado + "\n"))
+			}(cliente.Conn)
+		}
+	}
+}
+
+func PararSensor(nickSensor string, nickClient string) string {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	nickSensor = strings.TrimSpace(nickSensor)
+	sensor, existe := Dispositivos[nickSensor]
+	if !existe {
+		return "SENSOR NÃO ENCONTRADO\n"
+	}
+
+	// remove o cliente da lista de inscritos
+	for i, nick := range sensor.ListaInscritos {
+		if nick == nickClient {
+			sensor.ListaInscritos = append(sensor.ListaInscritos[:i], sensor.ListaInscritos[i+1:]...)
+			return "PAROU DE SEGUIR " + nickSensor + "\n"
+		}
+	}
+
+	return "VOCE NAO ESTA INSCRITO NESSE SENSOR\n"
 }

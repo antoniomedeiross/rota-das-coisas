@@ -33,6 +33,9 @@ func HandleRequestUdp(data []byte, clientAddr *net.UDPAddr, conn *net.UDPConn) {
 		log.Println("SENSORES CONECTADOS =", len(repository.Dispositivos))
 		log.Println("CLIENTES CONECTADOS =", len(repository.Clientes))
 
+	case "ESPIAR":
+		// receber os dados dos sensores em tempo real
+		return
 	default:
 		fmt.Println("COMANDO INVÁLIDO")
 		conn.WriteToUDP([]byte("COMANDO INVÁLIDO, USE HELP\n"), clientAddr)

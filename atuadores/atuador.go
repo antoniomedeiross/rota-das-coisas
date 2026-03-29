@@ -9,10 +9,6 @@ import (
 	"strings"
 )
 
-const (
-	SERVER_ADDR = "192.168.0.103:9091" // IP do servidor TCP
-	NICK        = "atuador1"
-)
 
 var (
 	ativo = false
@@ -23,10 +19,16 @@ func getServerAddr() string {
 	if addr == "" {
 		addr = "localhost:9091" // fallback
 	}
-	return addr
+	return addr+":9091"
 }
 
+
+
 func main() {
+	nick, err := os.Hostname()
+	if err != nil {
+		log.Fatal("Erro ao buscar nome do container")
+	}
 	//conecta no servidor
 	conn, err := net.Dial("tcp", getServerAddr())
 	if err != nil {
@@ -34,10 +36,10 @@ func main() {
 	}
 	defer conn.Close()
 
-	log.Println("Conectado ao servidor:", SERVER_ADDR)
+	log.Println("Conectado ao servidor...")
 
 	// se registrar nem precisa
-	conn.Write([]byte("REGISTER-ATUADOR " + NICK + "\n"))
+	conn.Write([]byte("REGISTER-ATUADOR " + nick + "\n"))
 
 	reader := bufio.NewReader(conn)
 
@@ -76,6 +78,7 @@ func executarComando(cmd string) string {
 	case "ON":
 		if ativo == true {
 			fmt.Println("Atuador JÁ ESTÁ LIGADO")
+			ativo = true
 			return "ATUADOR JA ESTA LIGADO"
 		} else if ativo == false {
 			fmt.Println("Atuador LIGADO")
@@ -91,7 +94,7 @@ func executarComando(cmd string) string {
 			return "ATUADOR DESLIGADO"
 		} else if ativo == false {
 			fmt.Println("Atuador JA ESTÁ DESLIGADO")
-			ativo = true
+			ativo = false
 			return "ATUADOR JA ESTA DESLIGADO"
 		}
 		return "OCORREU UM ERRO"

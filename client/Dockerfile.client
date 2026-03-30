@@ -1,0 +1,14 @@
+# Busca o GO
+FROM golang:1.22-alpine 
+
+# Pasta de trabalho 
+WORKDIR /app
+
+# Copia a main client para o docker
+COPY client.go client.go
+
+# Da um build na main client
+RUN go build -o client client.go
+
+# Roda o executável
+CMD [ "./client" ]

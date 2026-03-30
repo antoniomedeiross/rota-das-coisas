@@ -3,6 +3,7 @@ package model
 import (
 	"bufio"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -25,7 +26,8 @@ type Atuador struct {
     Ativo  bool
     Conn   net.Conn
     Reader *bufio.Reader
-    Done   chan struct{} // ← sinaliza desconexão
+    Done   chan struct{}
+    Mu     sync.Mutex // mutex
 }
 
 type Cliente struct {

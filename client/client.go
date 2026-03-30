@@ -76,7 +76,10 @@ func main() {
 			listarAtuadores()
 		case "5":
 			comandarAtuador(scanner)
+			// no switch do main
 		case "6":
+			listarClientes() // ← adiciona
+		case "7": // ← era 6
 			enviar("QUIT")
 			fmt.Println("Saindo...")
 			os.Exit(0)
@@ -100,7 +103,8 @@ func mostrarMenu() {
 	fmt.Println("  3 - Parar de seguir sensor")
 	fmt.Println("  4 - Listar atuadores")
 	fmt.Println("  5 - Comandar atuador")
-	fmt.Println("  6 - Sair")
+	fmt.Println("  6 - Listar clientes")
+	fmt.Println("  7 - Sair")
 	fmt.Println("========================================")
 }
 
@@ -112,6 +116,12 @@ func listarSensores() {
 func listarAtuadores() {
 	enviar("LIST-ATUADORES")
 	<-aguardandoResposta
+}
+
+// adiciona a função
+func listarClientes() {
+    enviar("LIST-CLIENTES")
+    <-aguardandoResposta
 }
 
 func seguirSensor(scanner *bufio.Scanner) {

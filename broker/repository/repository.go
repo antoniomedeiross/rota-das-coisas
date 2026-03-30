@@ -194,6 +194,7 @@ func ListarClientesConectados(conn net.Conn) {
 	conn.Write([]byte(msg))
 }
 
+// repository.go - ComandarAtuador
 func ComandarAtuador(nick string, acao string) string {
 	mutex.Lock()
 	a, ok := Atuadores[nick]
@@ -203,23 +204,28 @@ func ComandarAtuador(nick string, acao string) string {
 		return "ATUADOR NAO ENCONTRADO\n"
 	}
 
-	msg := acao + "\n"
+	a.Mu.Lock() // ← serializa: só um comando por vez no atuador
+	defer a.Mu.Unlock()
 
-	_, err := a.Conn.Write([]byte(msg))
+	_, err := a.Conn.Write([]byte(acao + "\n"))
 	if err != nil {
 		return "ERRO AO ENVIAR COMANDO\n"
 	}
 
-	reader := a.Reader
-
-	resp, err := reader.ReadString('\n')
-	
+	resp, err := a.Reader.ReadString('\n')
 	if err != nil {
-		return "ERRO AO LER RESPOSTA DO ATUADOR\n"
+		//return "ERRO AO LER RESPOSTA DO ATUADOR\n"
+		select {
+		case <-a.Done: // já fechado, ignora
+		default:
+			close(a.Done)
+		}
+		RemoverAtuador(nick)
+		return "ATUADOR DESCONECTADO\n"
+
 	}
 
 	resp = strings.TrimSpace(resp)
-
 	switch resp {
 	case "ATUADOR LIGADO":
 		a.Ativo = true
@@ -252,11 +258,15 @@ func SetAtuador(nick string, ativo bool) bool {
 }
 
 func RemoverAtuador(nick string) {
-	for a := range Atuadores {
-		if a == nick {
-			delete(Atuadores, nick)
-		}
-	}
+    mutex.Lock()       
+    defer mutex.Unlock()
+    delete(Atuadores, nick)
+}
+
+func RemoverClient(nickClient string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	delete(Clientes, nickClient)
 }
 
 func MenuHelp(conn *net.UDPConn, clientAddr *net.UDPAddr) {

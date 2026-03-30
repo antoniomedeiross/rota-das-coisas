@@ -1,0 +1,10 @@
+version: "3"
+
+services:
+
+  client:
+    build: 
+      context: .
+      dockerfile: Dockerfile.client
+    environment:
+      - SERVER_ADDR=${SERVER_ADDR}

@@ -3,6 +3,7 @@ package handler
 import (
 	"broker/repository"
 	"bufio"
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -25,6 +26,7 @@ func HandleRequestTcp(conn net.Conn) {
 		msg, err := leitor.ReadString('\n')
 		if err != nil {
 			log.Println("Cliente desconectado:", addr)
+			repository.RemoverClient(nickClient)
 			return
 		}
 
@@ -53,14 +55,38 @@ func HandleRequestTcp(conn net.Conn) {
 			resp := repository.SalvarAtuador(nick, conn, leitor)
 			log.Println(resp)
 
-			// Espera sinal de desconexão sem tocar na conexão
+			// Espera sinal de desconexão
 			a := repository.GetAtuador(nick)
 			if a != nil {
-				<-a.Done // bloqueia aqui até alguém fechar o canal
+				go func() {
+					buf := make([]byte, 1)
+					for {
+						_, err := conn.Read(buf)
+						if err != nil {
+							log.Printf("Atuador %s caiu: %v\n", nick, err)
+							select {
+							case <-a.Done:
+							default:
+								close(a.Done)
+							}
+							return
+						}
+					}
+				}()
+
+				<-a.Done // bloqueia aqui
 			}
+
+			repository.RemoverAtuador(nick) // remove da lista
+			log.Printf("Atuador %s DESCONECTADO \n", nick)
+
 			return
 
 		case "REGISTER-CLIENT":
+			if len(parts) < 2 {
+				conn.Write([]byte("ERRO: nick não informado\n"))
+				continue
+			}
 			nick := parts[1]
 			resp := repository.SalvarCliente(nick, conn)
 
@@ -97,6 +123,8 @@ func HandleRequestTcp(conn net.Conn) {
 
 		case "QUIT":
 			conn.Write([]byte("Conexão encerrada\n"))
+			repository.RemoverClient(nickClient)
+			fmt.Println("Client " + nickClient + " desconectado")
 			return
 
 		case "PING":

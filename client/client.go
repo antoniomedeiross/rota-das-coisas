@@ -167,7 +167,6 @@ func escutarBroker() {
 		}
 
 		// dado do sensor sendo seguido → atualiza na mesma linha
-		// dado do sensor sendo seguido → atualiza na mesma linha
 		if sensorAtual != "" && strings.HasPrefix(msg, sensorAtual+":") {
 			fmt.Printf("\r[SENSOR] %-60s", msg)
 		} else {

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
 
 // goroutine que processa o canal TCP
@@ -55,15 +56,24 @@ func HandleRequestTcp(conn net.Conn) {
 			resp := repository.SalvarAtuador(nick, conn, leitor)
 			log.Println(resp)
 
-			// Espera sinal de desconexão
 			a := repository.GetAtuador(nick)
 			if a != nil {
 				go func() {
-					buf := make([]byte, 1)
 					for {
+						a.Mu.Lock()
+						buf := make([]byte, 1)
+						conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 						_, err := conn.Read(buf)
+						conn.SetReadDeadline(time.Time{})
+						a.Mu.Unlock()
+
 						if err != nil {
-							log.Printf("Atuador %s caiu: %v\n", nick, err)
+							// verifica se é timeout (normal) ou desconexão real
+							if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+								continue // timeout normal, atuador ainda vivo
+							}
+							// erro real = atuador caiu
+							log.Printf("Atuador %s caiu\n", nick)
 							select {
 							case <-a.Done:
 							default:
@@ -74,12 +84,11 @@ func HandleRequestTcp(conn net.Conn) {
 					}
 				}()
 
-				<-a.Done // bloqueia aqui
+				<-a.Done
 			}
 
-			repository.RemoverAtuador(nick) // remove da lista
-			log.Printf("Atuador %s DESCONECTADO \n", nick)
-
+			repository.RemoverAtuador(nick)
+			log.Printf("Atuador %s DESCONECTADO\n", nick)
 			return
 
 		case "REGISTER-CLIENT":
@@ -130,8 +139,23 @@ func HandleRequestTcp(conn net.Conn) {
 		case "PING":
 			conn.Write([]byte("PONG\n"))
 
+		case "HELP":
+			help := "============================= HELP =============================\n" +
+				"REGISTER-CLIENT <nick>              → registra o cliente\n" +
+				"REGISTER-ATUADOR <nick>             → registra o atuador\n" +
+				"COMMAND <nickAtuador> <ON/OFF>       → envia comando ao atuador\n" +
+				"SEGUIR-SENSOR <nickSensor>           → inscreve no sensor\n" +
+				"PARAR-SENSOR <nickSensor>            → cancela inscrição no sensor\n" +
+				"LIST-SENSORES                        → lista sensores conectados\n" +
+				"LIST-ATUADORES                       → lista atuadores conectados\n" +
+				"LIST-CLIENTES                        → lista clientes conectados\n" +
+				"PING                                 → verifica conexão com o broker\n" +
+				"QUIT                                 → encerra a conexão\n" +
+				"================================================================\n"
+			conn.Write([]byte(help))
+
 		default:
-			conn.Write([]byte("Comando inválido\n"))
+			conn.Write([]byte("Comando inválido, use HELP\n"))
 		}
 	}
 }

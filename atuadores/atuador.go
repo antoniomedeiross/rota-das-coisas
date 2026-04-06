@@ -64,7 +64,7 @@ func main() {
 		// executa comando
 		resposta := executarComando(msg)
 
-		fmt.Println(resposta)
+		//fmt.Println(resposta)
 		//responde (opcional)
 		conn.Write([]byte(resposta + "\n"))
 	}

@@ -269,11 +269,16 @@ func RemoverClient(nickClient string) {
 	delete(Clientes, nickClient)
 }
 
-func MenuHelp(conn *net.UDPConn, clientAddr *net.UDPAddr) {
-	menu := ("============================= HELP INCOMPLETO ============================= \n" +
-		"REGISTER nickSensor --> registra o sensor \n")
 
-	conn.WriteToUDP([]byte(menu), clientAddr)
+func MenuHelp(conn *net.UDPConn, clientAddr *net.UDPAddr) {
+    menu := "============================= HELP =============================\n" +
+        "REGISTER-SENSOR <nick>     → registra o sensor\n" +
+        "DATA <nick> <valor>        → envia dado do sensor\n" +
+        "ESPIAR <nick>              → recebe dados do sensor em tempo real\n" +
+        "PARAR-ESPIAR <nick>        → para de receber dados do sensor\n" +
+        "HELP                       → exibe este menu\n" +
+        "================================================================\n"
+    conn.WriteToUDP([]byte(menu), clientAddr)
 }
 
 func GetAtuador(nick string) *model.Atuador {

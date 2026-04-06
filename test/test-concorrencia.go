@@ -63,7 +63,7 @@ func simularCliente(nick string, atuador string, acoes []string, wg *sync.WaitGr
 }
 
 func main() {
-	atuador := "4950e0baed81"
+	atuador := "9fd833b45d3b"
 	if len(os.Args) > 1 {
 		atuador = os.Args[1]
 	}

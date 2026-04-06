@@ -5,7 +5,6 @@ import (
 	"broker/repository"
 	"log"
 	"net"
-	"fmt"
 )
 // go rotine que processa as requisicoes do canal UDP
 
@@ -28,16 +27,13 @@ func HandleRequestUdp(data []byte, clientAddr *net.UDPAddr, conn *net.UDPConn) {
 
 	case "DEBUG":
 		//fmt.Println(repository.Dispositivos)
-		fmt.Println(repository.Atuadores)
+		//log.Println(repository.Atuadores)
 		//fmt.Println(repository.Clientes)
 		log.Println("SENSORES CONECTADOS =", len(repository.Dispositivos))
 		log.Println("CLIENTES CONECTADOS =", len(repository.Clientes))
 
-	case "ESPIAR":
-		// receber os dados dos sensores em tempo real
-		return
 	default:
-		fmt.Println("COMANDO INVÁLIDO")
+		log.Println("COMANDO INVÁLIDO")
 		conn.WriteToUDP([]byte("COMANDO INVÁLIDO, USE HELP\n"), clientAddr)
 	}
 

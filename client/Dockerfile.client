@@ -4,8 +4,14 @@ FROM golang:1.22-alpine
 # Pasta de trabalho 
 WORKDIR /app
 
+# 1. Copia arquivos de módulo primeiro
+COPY go.mod go.sum ./
+
+# 2. Baixa dependências (fica em cache)
+RUN go mod download
+
 # Copia a main client para o docker
-COPY client.go client.go
+COPY client-cla.go client.go
 
 # Da um build na main client
 RUN go build -o client client.go

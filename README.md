@@ -1,208 +1,278 @@
-# Broker IoT
+# 🌐 Broker IoT — Sistema de Integração para Dispositivos IoT
 
-Sistema distribuído em Go para comunicação entre **sensores**, **atuadores** e **clientes**, com um **broker** central responsável por registrar dispositivos, receber dados, encaminhar comandos e listar conexões.
+Sistema de comunicação para IoT composto por um broker central que intermedia sensores, atuadores e clientes, eliminando o acoplamento direto entre os dispositivos.
 
-## Visão geral
+---
 
-O projeto é dividido em quatro partes principais:
+## 📁 Estrutura de Diretórios
 
-- **Broker**: núcleo do sistema, recebe conexões UDP e TCP.
-- **Sensores**: enviam dados periódicos via UDP.
-- **Atuadores**: recebem comandos via TCP.
-- **Clientes**: interface interativa para consultar sensores/atuadores/clientes e comandar atuadores.
+```
+pbl-1/
+├── broker/                     # Serviço central de intermediação
+│   ├── config/
+│   │   └── config.go           # Constantes de configuração (IPs e portas)
+│   ├── handler/
+│   │   ├── tcp_handler.go      # Handler das conexões TCP (clientes e atuadores)
+│   │   └── udp_handler.go      # Handler das mensagens UDP (sensores)
+│   ├── model/
+│   │   └── models.go           # Structs: Sensor, Atuador, Cliente
+│   ├── netServer/
+│   │   ├── tcp.go              # Inicialização do servidor TCP (:9091)
+│   │   └── udp.go              # Inicialização do servidor UDP (:9090)
+│   ├── repository/
+│   │   ├── repository.go       # Lógica de negócio e armazenamento em memória
+│   │   └── heartBeat.go        # Monitoramento de sensores inativos
+│   ├── main.go                 # Ponto de entrada do broker
+│   ├── Dockerfile
+│   └── docker-compose.yml
+│
+├── sensores/                   # Dispositivo virtual sensor
+│   ├── main.go                 # Envia DATA via UDP a cada 500ms
+│   ├── Dockerfile
+│   └── docker-compose.yml
+│
+├── atuadores/                  # Dispositivo virtual atuador
+│   ├── atuador.go              # Recebe comandos ON/OFF via TCP e responde
+│   ├── Dockerfile
+│   └── docker-compose.yml
+│
+└── client/                     # Aplicação cliente (interface terminal)
+    ├── client.go               # Menu interativo, segue sensores e comanda atuadores
+    ├── Dockerfile
+    └── docker-compose.yml
+```
 
-## Estrutura de diretórios
+---
 
-- [broker/](broker)
-  - [broker/main.go](broker/main.go)
-  - [broker/config/config.go](broker/config/config.go)
-  - [broker/handler/tcp_handler.go](broker/handler/tcp_handler.go)
-  - [broker/handler/udp_handler.go](broker/handler/udp_handler.go)
-  - [broker/model/models.go](broker/model/models.go)
-  - [broker/netServer/tcp.go](broker/netServer/tcp.go)
-  - [broker/netServer/udp.go](broker/netServer/udp.go)
-  - [broker/repository/repository.go](broker/repository/repository.go)
-  - [broker/repository/heartBeat.go](broker/repository/heartBeat.go)
-- [client/](client)
-  - [client/client.go](client/client.go)
-  - [client/client-cla.go](client/client-cla.go)
-  - [client/client-gem.go](client/client-gem.go)
-  - [client/go.mod](client/go.mod)
-- [sensores/](sensores)
-  - [sensores/main.go](sensores/main.go)
-- [atuadores/](atuadores)
-  - [atuadores/atuador.go](atuadores/atuador.go)
-- [test/](test)
-  - [test/test-concorrencia.go](test/test-concorrencia.go)
-
-## Pacotes do broker
-
-### [broker/config/config.go](broker/config/config.go)
-Centraliza as portas e IPs padrão do broker.
-
-- UDP: `9090`
-- TCP: `9091`
-
-### [broker/model/models.go](broker/model/models.go)
-Define as estruturas de dados do sistema:
-
-- `Sensor`
-- `Atuador`
-- `Cliente`
-
-### [broker/repository/repository.go](broker/repository/repository.go)
-Responsável pelo armazenamento em memória e pelas operações principais:
-
-- registro de sensores, atuadores e clientes
-- listagem de dispositivos conectados
-- comando de atuadores
-- inscrição e cancelamento de sensores
-- repasse de dados de sensores para clientes inscritos
-
-### [broker/repository/heartBeat.go](broker/repository/heartBeat.go)
-Monitora sensores por tempo de inatividade e remove sensores antigos da lista.
-
-### [broker/handler/tcp_handler.go](broker/handler/tcp_handler.go)
-Processa comandos TCP, como:
-
-- `REGISTER-CLIENT`
-- `REGISTER-ATUADOR`
-- `COMMAND`
-- `LIST-SENSORES`
-- `LIST-ATUADORES`
-- `LIST-CLIENTES`
-- `SEGUIR-SENSOR`
-- `PARAR-SENSOR`
-- `QUIT`
-
-### [broker/handler/udp_handler.go](broker/handler/udp_handler.go)
-Processa mensagens UDP:
-
-- `REGISTER-SENSOR`
-- `DATA`
-- `HELP`
-
-### [broker/netServer/tcp.go](broker/netServer/tcp.go)
-Sobe o servidor TCP na porta `9091`.
-
-### [broker/netServer/udp.go](broker/netServer/udp.go)
-Sobe o servidor UDP na porta `9090`.
-
-### [broker/main.go](broker/main.go)
-Inicializa os servidores TCP e UDP e o monitoramento de heartbeat.
-
-## Como executar
-
-## Com Docker
+##  Pacotes e Dependências
 
 ### Broker
-```sh
-docker build -t broker ./broker
-docker run --rm -p 9090:9090/udp -p 9091:9091/tcp broker
-```
+| Pacote | Uso |
+|--------|-----|
+| `net` | Conexões TCP e UDP nativas |
+| `sync` | Mutex para proteção dos maps compartilhados |
+| `bufio` | Leitura de mensagens linha a linha via TCP |
+| `time` | Heartbeat e controle de timeout |
 
 ### Cliente
-```sh
-cd client
-docker build -t client -f Dockerfile.client .
-docker run --rm -it -e SERVER_ADDR=<IP_DO_BROKER>:9091 client
+| Pacote | Uso |
+|--------|-----|
+| `net` | Conexão TCP com o broker |
+| `bufio` | Leitura de mensagens e input do usuário |
+| `os/exec` | Limpeza de tela multiplataforma |
+| `github.com/charmbracelet/lipgloss` | Estilização do terminal |
+
+> **Nenhum framework de mensageria foi utilizado.** Toda a comunicação é feita com os pacotes nativos de rede do Go (`net`), conforme requisito do projeto.
+
+---
+
+##  Protocolo de Comunicação
+
+### Canal UDP — Porta 9090 (Sensores)
+
+| Comando | Descrição |
+|---------|-----------|
+| `REGISTER-SENSOR <nick>` | Registra o sensor no broker |
+| `DATA <nick> <valor>` | Envia leitura do sensor |
+| `DEBUG` | Exibe a lista de sensores e clientes.
+| `HELP` | Exibe comandos disponíveis |
+
+### Canal TCP — Porta 9091 (Clientes e Atuadores)
+
+| Comando | Descrição |
+|---------|-----------|
+| `REGISTER-CLIENT <nick>` | Registra o cliente |
+| `REGISTER-ATUADOR <nick>` | Registra o atuador |
+| `COMMAND <nick> <ON/OFF>` | Envia comando ao atuador |
+| `SEGUIR-SENSOR <nick>` | Inscreve cliente no sensor |
+| `PARAR-SENSOR <nick>` | Cancela inscrição no sensor |
+| `LIST-SENSORES` | Lista sensores conectados |
+| `LIST-ATUADORES` | Lista atuadores conectados |
+| `LIST-CLIENTES` | Lista clientes conectados |
+| `PING` | Verifica conexão com o broker |
+| `QUIT` | Encerra a conexão |
+| `HELP` | Exibe comandos disponíveis |
+
+---
+
+##  Como Executar
+
+### Pré-requisitos
+- [Docker](https://docs.docker.com/) instalado
+- [Go 1.21+](https://go.dev/) (para execução local sem Docker)
+
+---
+
+### 1. Subir o Broker
+
+```bash
+cd broker/
+docker compose up
 ```
 
-### Sensores
-```sh
-cd sensores
-docker build -t sensores -f Dockerfile.sensores .
-docker run --rm -it -e SERVER_ADDR=<IP_DO_BROKER> sensores
+O broker ficará disponível em:
+- UDP: `(ip do pc):9090` 
+- TCP: `(ip do pc):9091`
+
+---
+
+### 2. Subir os Sensores
+
+```bash
+cd sensores/
+SERVER_ADDR=<IP_DO_BROKER> docker compose up
 ```
 
-### Atuadores
-```sh
-cd atuadores
-docker build -t atuadores -f Dockerfile.atuadores .
-docker run --rm -it -e SERVER_ADDR=<IP_DO_BROKER> atuadores
+Cada instância do sensor se registra automaticamente usando o hostname do container como identificador.
+
+Para múltiplas instâncias:
+```bash
+SERVER_ADDR=<IP_DO_BROKER> docker compose up --scale sensor=3
 ```
 
-## Com Docker Compose
+---
 
-Cada pasta possui um arquivo `docker-compose.yml`:
+### 3. Subir os Atuadores
 
-- [broker/docker-compose.yml](broker/docker-compose.yml)
-- [client/docker-compose.yml](client/docker-compose.yml)
-- [sensores/docker-compose.yml](sensores/docker-compose.yml)
-- [atuadores/docker-compose.yml](atuadores/docker-compose.yml)
-
-Exemplo:
-
-```sh
-cd broker
-docker compose up --build
+```bash
+cd atuadores/
+SERVER_ADDR=<IP_DO_BROKER> docker compose up
 ```
 
-
-## Como usar
-
-## Cliente
-Ao iniciar, o cliente solicita o nick e exibe um menu interativo:
-
-1. Listar sensores
-2. Seguir sensor
-3. Parar de seguir sensor
-4. Listar atuadores
-5. Comandar atuador
-6. Listar clientes
-7. Sair
-
-### Exemplos de uso
-- Seguir um sensor:
-  - escolher a opção `2`
-  - informar o nick do sensor
-- Comandar um atuador:
-  - escolher a opção `5`
-  - informar o nick do atuador
-  - informar `ON` ou `OFF`
-
-## Sensores
-O sensor:
-
-- registra-se no broker via UDP
-- envia dados periódicos com `DATA <nick> <valor>`
-- mantém envio contínuo em intervalos curtos
-
-## Atuadores
-O atuador:
-
-- registra-se no broker via TCP
-- aguarda comandos `ON` e `OFF`
-- responde com o estado atual
-
-## Teste de concorrência
-
-O teste está em [test/test-concorrencia.go](test/test-concorrencia.go).
-
-Executar:
-```sh
-cd test
-go run test-concorrencia.go
+Para múltiplas instâncias:
+```bash
+SERVER_ADDR=<IP_DO_BROKER> docker compose up --scale atuador=3
 ```
 
-Esse teste:
+---
 
-- abre dois clientes simultâneos
-- envia comandos repetidos para o mesmo atuador
-- mede o tempo de resposta
+### 4. Subir o Cliente
 
-## Dependências
+```bash
+cd client/
+docker run -it -e SERVER_ADDR=<IP_DO_BROKER>:9091 tonito12/client:cla
+```
 
-- Go `1.22`
-- `github.com/charmbracelet/lipgloss`
+> O `-it` é obrigatório pois o cliente é interativo.
 
-## Observações
+---
 
-- O sistema usa **UDP** para sensores e **TCP** para clientes e atuadores.
-- Sensores clientes e atuadores precisam apontar para o **IP do broker** via variável `SERVER_ADDR`.
-- O cliente usa a porta TCP `9091`.
+### Execução Local (sem Docker)
+
+```bash
+# broker
+cd broker/
+go run main.go
+
+# sensor
+cd sensores/
+go run main.go
+
+# atuador
+cd atuadores/
+SERVER_ADDR=localhost go run atuador.go
+
+# cliente
+cd client/
+go get github.com/charmbracelet/lipgloss
+SERVER_ADDR=localhost:9091 go run client.go
+```
+
+---
+
+##  Como Usar o Cliente
+
+Ao iniciar o cliente, digite seu nick e utilize o menu interativo:
+
+```
+╭──────────────────────────────────────────╮
+│       🌐  BROKER IoT - CLIENTE           │
+│         conectado como: antonio          │
+│                                          │
+│  [1] Listar sensores                     │
+│  [2] Seguir sensor                       │
+│  [3] Parar de seguir sensor              │
+│  [4] Listar atuadores                    │
+│  [5] Comandar atuador                    │
+│  [6] Listar clientes                     │
+│  [7] Sair                                │
+╰──────────────────────────────────────────╯
+```
+
+**Fluxo típico:**
+ `1` — Lista os sensores disponíveis e anota o nick
+ `2` — Digita o nick do sensor para receber dados em tempo real
+ `3` — Para de receber dados do sensor atual
+ `4` — Lista os atuadores conectados
+ `5` — Digita o nick do atuador e o comando `ON` ou `OFF`
+ `6` — Lista os clientes conectados
+ `7` — Sai do sistema
+
+---
+
+##  Teste de Concorrência
+
+Para simular dois clientes enviando comandos simultâneos ao mesmo atuador:
+
+```bash
+cd test/
+go run teste_concorrencia.go <nick_do_atuador>
+
+# exemplo:
+go run teste_concorrencia.go 27d18a87640b
+```
+
+---
+
+## 🏗️ Arquitetura
 
 
-## Licença
+```mermaid
+graph LR
+    %% Definição dos Nós
+    Sensor[Sensor]
+    Atuador[Atuador]
+    Cliente[Cliente]
+    Broker(Broker IoT)
 
-Projeto distribuído sob a licença MIT. Veja [LICENSE](LICENSE).
+    %% Conexões
+    Sensor -->|"UDP :9090"| Broker
+    Atuador <-->|"TCP :9091"| Broker
+    Cliente <-->|"TCP :9091"| Broker
+
+    %% Estilização
+    classDef box fill:#fff,stroke:#000,stroke-width:1px,rx:2,ry:2;
+    classDef rounded fill:#fff,stroke:#000,stroke-width:1px,rx:10,ry:10;
+    class Sensor,Atuador,Cliente box;
+    class Broker rounded;
+```
+
+- **Sensores** enviam dados via UDP (sem conexão, tolerante a perdas)
+- **Atuadores** mantêm conexão TCP persistente aguardando comandos
+- **Clientes** se inscrevem em sensores e enviam comandos a atuadores via TCP
+
+---
+
+##  Desenvolvedor
+
+<table>
+  <tr>
+    <td align="center" width="150px">
+      <a href="https://github.com/antoniomedeiross">
+        <img src="https://github.com/antoniomedeiross.png" width="100px;" alt="Foto de Antonio Medeiros"/><br />
+        <sub><b>Antonio Medeiros</b></sub>
+      </a>
+      <br>
+      <br>
+      <a href="https://linkedin.com/in/antoniomedeiross" title="LinkedIn">
+        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/linkedin/linkedin-original.svg" width="30px"/>
+      </a>
+    </td>
+    <td>
+      <strong>Antônio Aparecido Medeiros Santana</strong><br>
+      Universidade Estadual de Feira de Santana — UEFS<br>
+      Departamento de Tecnologia — DTEC<br>
+      antoniomedeirosdev@gmail.com
+    </td>
+  </tr>
+</table>

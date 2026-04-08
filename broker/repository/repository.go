@@ -127,7 +127,7 @@ func SeguirSensor(nickSensor string, nickClient string) string {
 	if !existe {
 		return "SENSOR NÃO ENCONTRADO\n"
 	}
-	fmt.Println(nickSensor, " - Nome do sensor")
+	//log.Println(nickSensor, " - Nome do sensor")
 	s := Dispositivos[nickSensor]
 	s.ListaInscritos = append(s.ListaInscritos, nickClient)
 	Dispositivos[nickSensor] = s
@@ -204,7 +204,7 @@ func ComandarAtuador(nick string, acao string) string {
 		return "ATUADOR NAO ENCONTRADO\n"
 	}
 
-	a.Mu.Lock() // ← serializa: só um comando por vez no atuador
+	a.Mu.Lock() // só um comando por vez no atuador
 	defer a.Mu.Unlock()
 
 	_, err := a.Conn.Write([]byte(acao + "\n"))
@@ -348,6 +348,7 @@ func PararSensor(nickSensor string, nickClient string) string {
 	for i, nick := range sensor.ListaInscritos {
 		if nick == nickClient {
 			sensor.ListaInscritos = append(sensor.ListaInscritos[:i], sensor.ListaInscritos[i+1:]...)
+			
 			return "PAROU DE SEGUIR " + nickSensor + "\n"
 		}
 	}

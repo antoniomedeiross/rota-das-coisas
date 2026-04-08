@@ -17,7 +17,7 @@ func StartUdp() {
 		log.Println("ERRO AO ABRIR PORTA DO SERVIDOR")
 	}
 
-	log.Println("SERVER INICIADO NO ENDEREÇO --> ", addr)
+	log.Println("UDP rodando em: 9090")
 
 	for {
 		buffer := make([]byte, 1024)

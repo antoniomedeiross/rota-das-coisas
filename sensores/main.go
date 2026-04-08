@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-
 func getServerAddr() string {
 	addr := os.Getenv("SERVER_ADDR")
 	if addr == "" {
@@ -23,7 +22,7 @@ func getServerAddr() string {
 
 func main() {
 	// Configura o rand
-	nick, err:= os.Hostname()
+	nick, err := os.Hostname()
 
 	if err != nil {
 		log.Fatalf("Erro ao pegar nick do host")
@@ -47,8 +46,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Erro ao registrar: %v", err)
 	}
-	fmt.Println("REGISTER-SENSOR "+ nick +" enviado")
- 
+	fmt.Println("REGISTER-SENSOR " + nick + " enviado")
+
 	// Goroutine para receber respostas do servidor
 	go func() {
 		buffer := make([]byte, 1024)
@@ -59,24 +58,24 @@ func main() {
 				// Timeout ou erro, continua
 				continue
 			}
-			
+
 			resposta := string(buffer[:n])
 			fmt.Printf("Resposta do servidor: %s\n", resposta)
 		}
 	}()
 
-	// 2. Loop para enviar DATA a cada 0.5 segundos
-	ticker := time.NewTicker( 500 * time.Millisecond)
+	// 2. Loop para enviar DATA a cada 0.1 segundos
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		// Gera temperatura aleatória
 		temp := strconv.Itoa(rand.Intn(100))
-		
+
 		// Envia DATA
-		mensagem := []byte("DATA "+ nick +" "+ temp)
+		mensagem := []byte("DATA " + nick + " " + temp)
 		_, err := conn.Write(mensagem)
-		
+
 		if err != nil {
 			log.Printf("Erro ao enviar DATA: %v", err)
 		} else {
